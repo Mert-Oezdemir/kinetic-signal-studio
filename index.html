@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kinetic Signal Studio</title>
+<style>
+  :root {--page: #e5e5ff; --ink: #181435; --purple: #4930a7; --soft: #594d81; --panel: #f9f5ff; --edge: #ada2d0; --lime: #ddff75; font: 1rem/1.5 system-ui, sans-serif}
+  * {box-sizing: border-box}
+  body {margin: 0; background: var(--page); color: var(--ink)}
+  main {width: min(100% - 2rem, 78rem); margin: auto; padding: clamp(1rem, 5vw, 4rem) 0}
+  header {display: grid; gap: .65rem; margin-bottom: 1.3rem}
+  h1, h2, p {margin: 0}
+  h1 {font: 850 clamp(2.5rem, 7.5vw, 6rem)/.96 system-ui, sans-serif; letter-spacing: -.055em}
+  header p {color: var(--soft); max-width: 38rem}
+  .workspace {display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(15rem, 1fr); gap: 1rem}
+  .scope, .controls {background: var(--panel); padding: clamp(.8rem, 3vw, 1.6rem); border: 1px solid var(--edge); min-width: 0}
+  .scope {border-radius: 1.4rem 1.4rem 1.4rem .25rem}
+  .controls {border-radius: 1.4rem .25rem 1.4rem 1.4rem; align-self: start}
+  h2 {font-size: 1.08rem}
+  svg {display: block; width: 100%; max-height: 380px; margin: .5rem auto; color: var(--soft)}
+  .track {height: 3rem; border: 1px solid #392b66; border-radius: .7rem; background: #272045; position: relative; overflow: hidden}
+  .track::before {content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(90deg, #9285b140 0 1px, transparent 1px 10%)}
+  .runner {height: 2rem; aspect-ratio: 1; position: absolute; left: 0; top: .4rem; border: 2px solid #1c1537; border-radius: .25rem; background: var(--lime)}
+  .play-row {display: flex; align-items: center; gap: .6rem; margin: .7rem 0 .4rem; flex-wrap: wrap}
+  button {font: inherit; min-height: 44px; padding: .35rem .65rem; background: var(--panel); border: 1px solid var(--edge); color: var(--ink); border-radius: .3rem; cursor: pointer}
+  button:hover {border-color: var(--purple)}
+  button[aria-pressed=true], .play-row button {background: var(--purple); border-color: var(--purple); color: white}
+  button:focus-visible, input:focus-visible {outline: 3px solid var(--purple); outline-offset: 3px}
+  .presets {display: flex; flex-wrap: wrap; gap: .4rem; margin: .6rem 0 .85rem}
+  .settings {display: grid; grid-template-columns: 1fr 1fr; gap: .5rem .7rem}
+  label {display: grid; gap: .15rem; min-width: 0; font-size: .88rem; color: var(--soft)}
+  label output {color: var(--ink); font-weight: 700}
+  input {width: 100%; min-height: 2rem; margin: 0; accent-color: var(--purple)}
+  .export {border-top: 1px solid var(--edge); margin-top: .85rem; padding-top: .85rem; display: grid; gap: .35rem}
+  .export input {font: .83rem/1.3 Consolas, monospace; background: white; border: 1px solid var(--edge); border-radius: .3rem; color: var(--ink); padding: .6rem}
+  @media (max-width: 48rem) {.workspace {grid-template-columns: minmax(0, 1fr)}}
+</style>
+<main>
+  <header><h1>Kinetic Signal Studio</h1><p>Shape a timing curve and compare how the same distance feels with different acceleration.</p></header>
+  <div class="workspace">
+    <section class="scope" aria-labelledby="preview-title">
+      <h2 id="preview-title">Motion preview</h2>
+      <svg viewBox="0 0 400 275" role="img" aria-labelledby="chart-title chart-description" xmlns="http://www.w3.org/2000/svg">
+        <title id="chart-title">Timing curve</title>
+        <desc id="chart-description">Elapsed time increases from left to right and distance increases from bottom to top.</desc>
+        <path d="M44 24H376V226H44ZM44 74.5H376M44 125H376M44 175.5H376M127 24V226M210 24V226M293 24V226" fill="none" stroke="#d4cbe7"/>
+        <path d="M44 226L376 24" fill="none" stroke="#a096c3" stroke-dasharray="4 5"/>
+        <path id="handles" fill="none" stroke="#ad9fdb" stroke-width="2"/>
+        <path id="curve" fill="none" stroke="#4930a7" stroke-width="4" stroke-linecap="round"/>
+        <circle id="first" r="5" fill="#4930a7"/>
+        <circle id="second" r="5" fill="#4930a7"/>
+        <circle id="marker" r="6" fill="#ddff75" stroke="#181435" stroke-width="2"/>
+        <g fill="currentColor" font-size="12" font-family="system-ui, sans-serif">
+          <text x="210" y="253" text-anchor="middle">Elapsed time</text>
+          <text x="18" y="125" transform="rotate(-90 18 125)" text-anchor="middle">Distance</text>
+          <text x="44" y="244">0</text><text x="376" y="244" text-anchor="end">100%</text>
+        </g>
+      </svg>
+      <div class="track" aria-hidden="true"><span class="runner"></span></div>
+      <div class="play-row"><button id="play" type="button">Play motion</button><button id="pause" type="button" hidden>Pause motion</button></div>
+      <label for="scrub"><span>Preview position <output id="progress" for="scrub" aria-live="off">0%</output></span><input id="scrub" type="range" min="0" max="100" value="0"></label>
+    </section>
+    <section class="controls" aria-labelledby="controls-title">
+      <h2 id="controls-title">Curve presets</h2>
+      <div class="presets" id="presets"></div>
+      <div class="settings">
+        <label for="x1"><span>First time <output for="x1"></output></span><input id="x1" type="range" min="0" max="1" step=".01"></label>
+        <label for="y1"><span>First distance <output for="y1"></output></span><input id="y1" type="range" min="0" max="1" step=".01"></label>
+        <label for="x2"><span>Second time <output for="x2"></output></span><input id="x2" type="range" min="0" max="1" step=".01"></label>
+        <label for="y2"><span>Second distance <output for="y2"></output></span><input id="y2" type="range" min="0" max="1" step=".01"></label>
+      </div>
+      <label for="duration"><span>Duration <output for="duration">900 ms</output></span><input id="duration" type="range" min="200" max="2000" step="50" value="900"></label>
+      <div class="export"><label for="css">CSS easing</label><input id="css" type="text" readonly spellcheck="false" aria-label="CSS easing value"></div>
+    </section>
+  </div>
+  <noscript>Enable JavaScript to edit and preview a timing curve.</noscript>
+</main>
+<script>
+  const presets = [
+    {name: 'Even', points: [0, 0, 1, 1]},
+    {name: 'Glide', points: [.23, .81, .38, 1]},
+    {name: 'Build', points: [.56, 0, .86, .52]},
+    {name: 'Pulse', points: [.79, .02, .21, .98]},
+  ];
+  const $ = selector => document.querySelector(selector);
+  const sliders = ['x1', 'y1', 'x2', 'y2'].map(id => $(`#${id}`));
+  const duration = $('#duration');
+  const scrub = $('#scrub');
+  const play = $('#play');
+  const pause = $('#pause');
+  const track = $('.track');
+  const runner = $('.runner');
+  let points = presets[1].points.slice();
+  let fraction = 0;
+  let frame = 0;
+
+  function bezier(t, a, b) {
+    const u = 1 - t;
+    return 3 * u * u * t * a + 3 * u * t * t * b + t * t * t;
+  }
+
+  function distanceAt(time) {
+    if (time === 0 || time === 1) return time;
+    const [x1, y1, x2, y2] = points;
+    let lo = 0;
+    let hi = 1;
+    for (let iteration = 0; iteration < 20; iteration += 1) {
+      const mid = (lo + hi) / 2;
+      if (bezier(mid, x1, x2) < time) lo = mid;
+      else hi = mid;
+    }
+    return bezier((lo + hi) / 2, y1, y2);
+  }
+
+  const x = value => 44 + 332 * value;
+  const y = value => 226 - 202 * value;
+
+  function moveTo(time) {
+    fraction = time;
+    const distance = distanceAt(time);
+    const room = Math.max(0, track.clientWidth - runner.offsetWidth);
+    runner.style.transform = `translateX(${room * distance}px)`;
+    $('#marker').setAttribute('cx', x(time));
+    $('#marker').setAttribute('cy', y(distance));
+    scrub.value = Math.round(time * 100);
+    $('#progress').value = `${scrub.value}%`;
+  }
+
+  function draw() {
+    const [x1, y1, x2, y2] = points;
+    $('#curve').setAttribute('d', `M44 226 C${x(x1)} ${y(y1)} ${x(x2)} ${y(y2)} 376 24`);
+    $('#handles').setAttribute('d', `M44 226 L${x(x1)} ${y(y1)} M376 24 L${x(x2)} ${y(y2)}`);
+    $('#first').setAttribute('cx', x(x1));
+    $('#first').setAttribute('cy', y(y1));
+    $('#second').setAttribute('cx', x(x2));
+    $('#second').setAttribute('cy', y(y2));
+    sliders.forEach((slider, index) => {
+      slider.value = points[index];
+      $(`output[for=${slider.id}]`).value = points[index].toFixed(2);
+    });
+    $('#css').value = `cubic-bezier(${points.join(', ')})`;
+    [...$('#presets').children].forEach((button, index) => {
+      button.setAttribute('aria-pressed', String(presets[index].points.every((value, pointIndex) => value === points[pointIndex])));
+    });
+    moveTo(fraction);
+  }
+
+  function stop() {
+    cancelAnimationFrame(frame);
+    frame = 0;
+    pause.hidden = true;
+  }
+
+  presets.forEach(preset => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = preset.name;
+    button.addEventListener('click', () => {
+      points = preset.points.slice();
+      draw();
+    });
+    $('#presets').append(button);
+  });
+  sliders.forEach(slider => slider.addEventListener('input', () => {
+    points = sliders.map(control => Number(control.value));
+    draw();
+  }));
+  duration.addEventListener('input', () => { $('output[for=duration]').value = `${duration.value} ms`; });
+  scrub.addEventListener('input', () => {
+    stop();
+    moveTo(Number(scrub.value) / 100);
+  });
+  play.addEventListener('click', () => {
+    stop();
+    moveTo(0);
+    pause.hidden = false;
+    const playbackDuration = Number(duration.value);
+    const start = performance.now();
+    function tick(time) {
+      const next = Math.min(1, Math.max(0, (time - start) / playbackDuration));
+      moveTo(next);
+      if (next === 1) stop();
+      else frame = requestAnimationFrame(tick);
+    }
+    frame = requestAnimationFrame(tick);
+  });
+  pause.addEventListener('click', () => {
+    stop();
+    play.focus();
+  });
+  $('#css').addEventListener('focus', event => event.currentTarget.select());
+  window.addEventListener('resize', () => moveTo(fraction));
+  draw();
+</script>
+</html>
